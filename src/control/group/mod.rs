@@ -22,8 +22,8 @@ cfg_if! {
         target_endian = "little",
         not(miri),
     ))] {
-        mod neon;
-        use neon as imp;
+        mod neon128;
+        use neon128 as imp;
     } else if #[cfg(all(
         feature = "nightly",
         target_arch = "loongarch64",
@@ -33,8 +33,8 @@ cfg_if! {
         mod lsx;
         use lsx as imp;
     } else {
-        mod generic;
-        use generic as imp;
+        mod neon128;
+        use neon128 as imp;
     }
 }
 pub(crate) use self::imp::Group;
