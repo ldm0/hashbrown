@@ -1,13 +1,22 @@
 use super::super::{BitMask, Tag};
 use core::arch::aarch64 as neon;
 use core::mem;
-use core::num::NonZeroU64;
+use core::num::NonZeroU8;
 
-pub(crate) type BitMaskWord = u64;
-pub(crate) type NonZeroBitMaskWord = NonZeroU64;
-pub(crate) const BITMASK_STRIDE: usize = 8;
+pub(crate) type BitMaskWord = u8;
+pub(crate) type NonZeroBitMaskWord = NonZeroU8;
+pub(crate) const BITMASK_STRIDE: usize = 1;
 pub(crate) const BITMASK_MASK: BitMaskWord = !0;
-pub(crate) const BITMASK_ITER_MASK: BitMaskWord = 0x8080_8080_8080_8080;
+pub(crate) const BITMASK_ITER_MASK: BitMaskWord = !0;
+
+#[inline]
+fn cmp_to_byte(cmp: neon::uint8x8_t) -> BitMaskWord {
+    const POWERS: [u8; 8] = [1, 2, 4, 8, 16, 32, 64, 128];
+    unsafe {
+        let powers = neon::vld1_u8(POWERS.as_ptr());
+        neon::vaddv_u8(neon::vand_u8(cmp, powers))
+    }
+}
 
 /// Abstraction over a group of control tags which can be scanned in
 /// parallel.
@@ -70,7 +79,7 @@ impl Group {
     pub(crate) fn match_tag(self, tag: Tag) -> BitMask {
         unsafe {
             let cmp = neon::vceq_u8(self.0, neon::vdup_n_u8(tag.0));
-            BitMask(neon::vget_lane_u64(neon::vreinterpret_u64_u8(cmp), 0))
+            BitMask(cmp_to_byte(cmp))
         }
     }
 
@@ -87,7 +96,7 @@ impl Group {
     pub(crate) fn match_empty_or_deleted(self) -> BitMask {
         unsafe {
             let cmp = neon::vcltz_s8(neon::vreinterpret_s8_u8(self.0));
-            BitMask(neon::vget_lane_u64(neon::vreinterpret_u64_u8(cmp), 0))
+            BitMask(cmp_to_byte(cmp))
         }
     }
 
@@ -96,7 +105,7 @@ impl Group {
     pub(crate) fn match_full(self) -> BitMask {
         unsafe {
             let cmp = neon::vcgez_s8(neon::vreinterpret_s8_u8(self.0));
-            BitMask(neon::vget_lane_u64(neon::vreinterpret_u64_u8(cmp), 0))
+            BitMask(cmp_to_byte(cmp))
         }
     }
 
