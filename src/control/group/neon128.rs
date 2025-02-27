@@ -1,27 +1,20 @@
 use super::super::{BitMask, Tag};
 use core::arch::aarch64 as neon;
 use core::mem;
-use core::num::NonZeroU16;
+use core::num::NonZeroU64;
 
-pub(crate) type BitMaskWord = u16;
-pub(crate) type NonZeroBitMaskWord = NonZeroU16;
-pub(crate) const BITMASK_STRIDE: usize = 1;
+pub(crate) type BitMaskWord = u64;
+pub(crate) type NonZeroBitMaskWord = NonZeroU64;
+pub(crate) const BITMASK_STRIDE: usize = 4;
 pub(crate) const BITMASK_MASK: BitMaskWord = !0;
-pub(crate) const BITMASK_ITER_MASK: BitMaskWord = !0;
+pub(crate) const BITMASK_ITER_MASK: BitMaskWord = 0x8888_8888_8888_8888;
 
 #[inline]
 fn cmp_to_word(cmp: neon::uint8x16_t) -> BitMaskWord {
-    const POWERS: [u8; 16] = [1, 2, 4, 8, 16, 32, 64, 128, 1, 2, 4, 8, 16, 32, 64, 128];
     unsafe {
-        let powers = neon::vld1q_u8(POWERS.as_ptr());
-        let mask = neon::vpaddlq_u32(neon::vpaddlq_u16(neon::vpaddlq_u8(neon::vandq_u8(
-            cmp, powers,
-        ))));
-        let mask = neon::vreinterpretq_u8_u64(mask);
-        let mut output = [0u8, 0u8];
-        neon::vst1q_lane_u8(&mut output[0], mask, 0);
-        neon::vst1q_lane_u8(&mut output[1], mask, 8);
-        u16::from_le_bytes(output)
+        let cmp = neon::vreinterpretq_u16_u8(cmp);
+        let res = neon::vshrn_n_u16(cmp, 4);
+        neon::vget_lane_u64(neon::vreinterpret_u64_u8(res), 0)
     }
 }
 
